@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dubbo="http://code.alibabatech.com/schema/dubbo"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://code.alibabatech.com/schema/dubbo
+        http://code.alibabatech.com/schema/dubbo/dubbo.xsd">
+
+	<dubbo:application name="test_client" />
+
+	<dubbo:registry address="zookeeper://123.57.217.101:2181?backup=123.57.217.101:2182,123.57.217.101:2183" />
+	<!-- <dubbo:registry address="zookeeper://101.200.228.188:2181?backup=101.200.228.188:2182" /> --> 
+	<dubbo:consumer timeout="60000" />
+
+	<dubbo:protocol name="dubbo" port="20880" />
+	
+	<dubbo:reference interface="com.ksb.openapi.service.WaybillService" id="waybillService" />
+	<dubbo:reference interface="com.ksb.openapi.mobile.service.MobileWaybillService" id="mobileWaybillService" />
+	
+	<dubbo:reference interface="com.ksb.openapi.mobile.service.CourierService" id="courierService" />
+	<dubbo:reference interface="com.ksb.openapi.mobile.service.ShipperService" id="shipperService" />
+	
+	<!-- 电商运单管理 -->
+	<dubbo:reference interface="com.ksb.openapi.mobile.service.EretailerService" id="eretailerService" />
+	<!-- O2O运单管理 -->
+	<dubbo:reference interface="com.ksb.openapi.mobile.service.O2oWaybillService" id="o2oWaybillService" />
+</beans>
