@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import com.ksb.openapi.entity.EnterpriseCityEntity;
 import com.ksb.openapi.entity.ResultEntity;
 import com.ksb.openapi.entity.ShipperEntity;
 import com.ksb.openapi.entity.ShipperUserEntity;
@@ -26,6 +27,7 @@ import com.ksb.openapi.mobile.service.CourierService;
 import com.ksb.openapi.mobile.service.EretailerService;
 import com.ksb.openapi.mobile.service.MobileWaybillService;
 import com.ksb.openapi.mobile.service.O2oWaybillService;
+import com.ksb.openapi.mobile.service.RedisService;
 import com.ksb.openapi.mobile.service.ShipperService;
 import com.ksb.openapi.service.WaybillService;
 import com.ksb.openapi.util.DateUtil;
@@ -52,6 +54,9 @@ public class AppApiController {
 	/*O2O运单管理*/
 	@Autowired
 	O2oWaybillService o2oWaybillService;
+	
+	@Autowired
+	RedisService redisService;
 	
 	/**
 	 * 手机用户登录
@@ -141,7 +146,7 @@ public class AppApiController {
 	 */
 	@RequestMapping("/work_status")
 	public @ResponseBody
-	       ResultEntity courierWorkStatus(String cid,String t,String x,String y){
+	       ResultEntity courierWorkStatus(String cid,String eid,String t,String x,String y){
 		log.entry(cid,t);
 		ResultEntity rsEntity = new ResultEntity();
 		if(StringUtils.isBlank(cid)){
@@ -149,7 +154,11 @@ public class AppApiController {
 			rsEntity.setObj("配送员编号为空");
 			return rsEntity;
 		}
-		
+		if(StringUtils.isBlank(eid)){
+			rsEntity.setErrors("ER");
+			rsEntity.setObj("配送员隶属公司为空");
+			return rsEntity;
+		}		
 		if(StringUtils.isBlank(t)){
 			rsEntity.setErrors("ER");
 			rsEntity.setObj("未指定操作类型");
@@ -164,17 +173,78 @@ public class AppApiController {
 		}
 		
 		try{
-		    courierService.updateCourierWorkStatus(cid, t,x,y);
+			/*如果经纬度不为空，则经纬度和状态一块更新*/
+		    courierService.updateCourierWorkStatus(cid,eid, t,x,y);
 		}catch(Exception e){
 			rsEntity.setErrors("ER");
 			rsEntity.setObj(e.getMessage());
 			return log.exit(rsEntity);
 		}
+		
+		/*异步把配送员开工收工状态更新到redis*/
+		//new AsynWorkStatus(cid,t).run();
+		
+		/*传递了经纬度信息*/
+		if(StringUtils.isNotBlank(x)&&StringUtils.isNotBlank(y)){
+			/*改为异步*/
+//		    new AsynRecordGps(cid, eid, x, y).run();
+		}
+		
 		rsEntity.setSuccess(true);
 		rsEntity.setErrors("OK");
 		rsEntity.setObj("");
 		return log.exit(rsEntity);
 	}
+	
+	/**
+	 * 异步更新配送员开工收工状态
+	 * @author houshipeng
+	 *
+	 */
+	class AsynWorkStatus extends Thread{
+		
+		public String cid = null;
+		public String workStatus = null;
+		public AsynWorkStatus(String cid,String workStatus){
+			this.cid = cid;
+			this.workStatus = workStatus;
+		}
+		
+		public void run(){
+			try{
+				redisService.updateWorkStatus(this.cid, this.workStatus);
+			}catch(Exception e){}
+		}
+	}
+	
+	/**
+	 * 异步记录配送员最新位置
+	 * @author houshipeng
+	 *
+	 */
+	class AsynRecordGps extends Thread{
+		
+		String cid = null;
+		String eid = null;
+		String x = null;
+		String y = null;
+		public AsynRecordGps(String cid,String eid,String x,String y){
+			this.cid = cid;
+			this.eid = eid;
+			this.x = x;
+			this.y = y;
+		}
+		
+		public void run(){
+			try{
+				redisService.recordCourierGps(this.cid, this.eid, this.x, this.y);
+			}catch(Exception e){}
+		}
+		
+	}
+	
+	
+	
 	
 	/**
 	 * 快递员配送统计(默认是当天配送)
@@ -233,7 +303,7 @@ public class AppApiController {
 		Map<String, String> rsMap = new HashMap<String, String>();
 		rsMap.put("id", id);
 		rsMap.put("sp_id", "1");
-		rsMap.put("name", "天猫超市");
+		rsMap.put("name", "电商运单");
 		rsEntity.setSuccess(true);
 		rsEntity.setErrors("OK");
 		rsEntity.setObj(rsMap);
@@ -391,7 +461,44 @@ public class AppApiController {
 			return rsEntity;
 		}
 		
+		String cityCode = request.getParameter("city_code");
+		if(StringUtils.isBlank(cityCode)){
+			rsEntity.setErrors("ER");
+			rsEntity.setObj("未指定城市");
+			return log.exit(rsEntity);
+		}
+		String x = request.getParameter("x");
+		String y = request.getParameter("y");
+		if(StringUtils.isBlank(x)||StringUtils.isBlank(y)){
+			rsEntity.setErrors("ER");
+			rsEntity.setObj("无法获取商家位置");
+			return log.exit(rsEntity);
+			
+		}
+		
+		saveMap.put("city_code", cityCode);
+		saveMap.put("x", x);
+		saveMap.put("y", y);
 		saveMap.put("sp_id", shipperId);
+		
+		/*根据citycode获取负责该城市配送的企业*/
+		List<EnterpriseCityEntity> list = shipperService.getEnterpriseAreaByCityInfo(null, null, cityCode, null);
+		if(list==null||list.size()==0){
+			rsEntity.setErrors("ER");
+			rsEntity.setObj("该城市暂时无法配送");
+			return log.exit(rsEntity);
+		}
+		
+		/*获取最近的配送员*/
+		String courierId = queryNearCourier(list, x, y);
+		if(StringUtils.isBlank(courierId)){
+			rsEntity.setErrors("ER");
+			rsEntity.setObj("附近无可用的配送员");
+			return log.exit(rsEntity);
+		}
+		
+		saveMap.put("cid", courierId);
+		
 		log.entry(saveMap);
 		try{
 		    shipperService.createWaybill(saveMap);
@@ -401,12 +508,76 @@ public class AppApiController {
 			return log.exit(rsEntity);
 		}
 		
+		/*配送状态异步同步到redis中*/
+		new AsynDeliveryStatus(courierId,"1").run();
+		
 		rsEntity.setSuccess(true);
 		rsEntity.setErrors("OK");
 		rsEntity.setObj("");
 		return log.exit(rsEntity);
 	}	
 	
+	
+	/**
+	 * 异步把配送员配送状态更新到redis中
+	 * @author houshipeng
+	 *
+	 */
+	class AsynDeliveryStatus extends Thread{
+		
+		public String cid = null;
+		public String status = null;
+		public AsynDeliveryStatus(String cid,String status){
+			this.cid = cid;
+			this.status = status;
+		}
+		public void run(){
+			/*更新配送员的配送状态*/
+			/*数据库 配置状态物理字段，生成订单的时候，已经更新，在此只需要更新redis中得配送状态即可*/
+			try{
+				redisService.updateDeliveryStatus(this.cid, status);
+			}catch(Exception e){
+			}
+		}
+	}
+	
+	
+	
+	
+	private String queryNearCourier(List<EnterpriseCityEntity> list,String x,String y){
+		List<String> courierList = new ArrayList<String>();
+        /*查询商家周边(默认3公里)范围内的配送员，如果是多个商家，则在比较多个商家中那个离的最近(后期考虑增加权重值，用于做订单的优先分配)*/
+		
+//		boolean redisIsWork = redisService.redisIsWork();
+        for(EnterpriseCityEntity ec : list){
+        	String eid = ec.getEnterprise_id();
+        	List<String> tmpList = null;
+//        	if(redisIsWork){
+//            	tmpList = redisService.queryNearCourier(eid, x, y);
+//        	}else{
+        		tmpList = courierService.queryNearCourier(eid, x, y);
+//        	}
+
+        	if(tmpList!=null&&tmpList.size()>0){
+        		courierList.addAll(tmpList);
+        	}
+        }
+        
+        log.entry("redis中检索配送员结果: ",courierList);
+        if(courierList==null||courierList.size()==0){
+			return null;
+        }
+        
+        /*获取配送员(现在是获取一个配送员，之后需要改为：如果有多个配送公司，从每个公司里面找最近的配送员，每个最近的再一次排序，找更近的)*/
+        return String.valueOf(courierList.get(0));
+        
+        /*如果商家周边3公里范围内没有配送员，则提示 商家，周边暂时没有配送员，请稍后再提交(下一版改为 用户可以提交，提交后的订单，定时扫描是否有 可分配的配送员)，
+         * 如果超过等待时间，自动取消(或者提醒商家取消订单)
+         * 或者在地图上显示周边的配送员，如果地图上没有可用的配送员，需要在地图上提醒
+         * */
+		
+		/*返回的结果为快递员id，如果返回为null，表示周边没有配送员*/
+	}
 	
 	/**
 	 * 快递员
@@ -427,7 +598,6 @@ public class AppApiController {
 		if(StringUtils.isBlank(t)){
 			t = "1";
 		}
-		
 		
 		List<Map<String, String>> rsList = new ArrayList<Map<String,String>>();
 		try{
@@ -518,7 +688,6 @@ public class AppApiController {
 		}
 		String page = request.getParameter("page");
 		if(StringUtils.isBlank(page)){
-//			return getDefaultErrorEntity("页码为空");
 			page = "1";
 		}
 		String status = request.getParameter("status");
@@ -530,7 +699,11 @@ public class AppApiController {
 		String size = request.getParameter("size");
 		int sizeInt = defaultSize;
 		if(StringUtils.isNotBlank(size)){
-			sizeInt = Integer.parseInt(size);
+			try{
+				sizeInt = Integer.parseInt(size);
+			}catch(Exception e){
+				return getDefaultErrorEntity("[size]非法参数值");
+			}
 		}
 		String opType = request.getParameter("t");
 		if(StringUtils.isBlank(opType)){
@@ -541,9 +714,17 @@ public class AppApiController {
 		
 		Map<String, Object> rsMap = null;
 		
-		int pageInt = Integer.parseInt(page);
+		/*判断page 和size参数是否为数字*/
+		int pageInt = 0;
+		
+		try{
+			pageInt = Integer.parseInt(page);
+		}catch(Exception e){
+			return getDefaultErrorEntity("非法页码");
+		}
+		
 		if(pageInt==0){
-			
+			return getDefaultErrorEntity("非法页码");
 		}
 		int skip = (pageInt-1)*sizeInt;
 		
@@ -575,6 +756,8 @@ public class AppApiController {
 		rsEntity.setPage(pageInt);
 		rsEntity.setSuccess(true);
 		rsEntity.setTotalCount(Long.parseLong(count.toString()));
+		long totalPage = (Long.parseLong(count.toString()) + sizeInt -1) / sizeInt;
+		rsEntity.setTotalPage(totalPage);
 		rsEntity.setLimit(sizeInt);
 		rsEntity.setStart(skip);
 		rsEntity.setErrors("OK");
@@ -603,16 +786,26 @@ public class AppApiController {
 		String size = request.getParameter("size");
 		int sizeInt = defaultSize;
 		if(StringUtils.isNotBlank(size)){
-			sizeInt = Integer.parseInt(size);
+			try{
+				sizeInt = Integer.parseInt(size);
+			}catch(Exception e){
+				return getDefaultErrorEntity("[size]非法参数值");
+			}
 		}
 		
 		ResultPageEntity rsEntity = new ResultPageEntity();
 		
 		Map<String, Object> rsMap = null;
 		
-		int pageInt = Integer.parseInt(page);
+		int pageInt = 0;
+		try{
+			pageInt = Integer.parseInt(page);
+		}catch(Exception e){
+			return getDefaultErrorEntity("非法页码");
+		}
+		
 		if(pageInt==0){
-			return getDefaultErrorEntity("页码从1开始");
+			return getDefaultErrorEntity("非法页码");
 		}
 		int skip = (pageInt-1)*sizeInt;
 		
@@ -632,6 +825,8 @@ public class AppApiController {
 		rsEntity.setPage(pageInt);
 		rsEntity.setSuccess(true);
 		rsEntity.setTotalCount(Long.parseLong(count.toString()));
+		long totalPage = (Long.parseLong(count.toString()) + sizeInt -1) / sizeInt;
+		rsEntity.setTotalPage(totalPage);
 		rsEntity.setLimit(sizeInt);
 		rsEntity.setStart(skip);
 		rsEntity.setErrors("OK");
@@ -681,6 +876,12 @@ public class AppApiController {
 			return log.exit(rs);
 		}
 		
+		int statusInt = Integer.parseInt(status);
+		/*5表示配送完成，<0表示异常件或者订单取消*/
+		if(statusInt==5||statusInt<0){
+			//new AsynDeliveryStatus(cid, "0").run();
+		}
+		
 		rs.setSuccess(true);
 		rs.setErrors("OK");
 		rs.setObj("");
@@ -727,10 +928,20 @@ public class AppApiController {
 	
 	@RequestMapping("/report_gps")
 	public @ResponseBody
-	        ResultEntity reportGps(String cid,String x,String y){
+	        ResultEntity reportGps(String cid,String eid,String x,String y){
 		
-		System.out.println(DateUtil.getTimeNow(new Date())+"----"+cid+"----"+x+"----"+y);
 		ResultEntity rs = new ResultEntity();
+		
+		/*配送员位置更新到数据库中*/
+		try{
+			courierService.recordCourierGps(cid, eid, x, y);
+		}catch(Exception e){}
+		
+		
+		/*配送员位置更新到redis中*/
+		try{
+			//new AsynRecordGps(cid, eid, x, y).run();
+		}catch(Exception e){}
 		
 		rs.setSuccess(true);
 		rs.setObj("");
@@ -738,6 +949,9 @@ public class AppApiController {
 		return rs;
 	}
 
+	
+	
+	
 	@RequestMapping("/sp_login")
 	public @ResponseBody
 	       ResultEntity shipperUserLogin(String un,String pwd){
@@ -771,15 +985,16 @@ public class AppApiController {
 	       ResultEntity shipperSetAddress(ShipperUserEntity entity){
 		
 		ResultEntity rs = new ResultEntity();
+		ShipperUserEntity spentity = null;
 		try{
-			shipperService.updateShipperDefualtAddress(entity);;
+			spentity = shipperService.updateShipperDefualtAddress(entity);
 		}catch(Exception e){
 			rs.setErrors("ER");
 			rs.setObj(e.getMessage());
 			return rs;
 		}
 		rs.setSuccess(true);
-		rs.setObj("");
+		rs.setObj(spentity);
 		rs.setErrors("OK");
 		return rs;
 	}
@@ -831,10 +1046,6 @@ public class AppApiController {
 		return log.exit(rsEntity);
 	} 
 	
-	
-	
-	
-	
 	@RequestMapping("/city_list")
 	public @ResponseBody
 	       ResultEntity cityList(){
@@ -847,28 +1058,47 @@ public class AppApiController {
 		Map<String, Object> map1 = new HashMap<String, Object>();
 		
 		/*广东市*/
-		List<String> gd = new ArrayList<String>();
-		gd.add("广州市");
-		gd.add("东莞市");
-		map1.put("provicen","广东省");
-		map1.put("city", gd);
+		List<Map<String, String>> gd = new ArrayList<Map<String, String>>();
+		
+		Map<String, String> gz = new HashMap<String, String>();
+		gz.put("city_name", "广州市");
+		gz.put("city_code", "020");
+		
+		Map<String, String> dg = new HashMap<String, String>();
+		dg.put("city_name", "东莞市");
+		dg.put("city_code", "0769");		
+		
+		gd.add(gz);
+		gd.add(dg);
+		map1.put("province","广东省");
+		map1.put("citys", gd);
 		
 		list.add(map1);
 		
 		Map<String, Object> map2 = new HashMap<String, Object>();
 		/*北京市*/
-		List<String> bj = new ArrayList<String>();
-		bj.add("北京市");
+		List<Map<String, String>> bj = new ArrayList<Map<String, String>>();
+		
+		Map<String, String> b = new HashMap<String, String>();
+		b.put("city_name", "北京市");
+		b.put("city_code", "010");
+		
+		bj.add(b);
+		
 		map2.put("province", "北京市");
-		map2.put("city", bj);
+		map2.put("citys", bj);
 		list.add(map2);
 		
 		Map<String, Object> map3 = new HashMap<String, Object>();
 		/*山东省*/
-		List<String> sd = new ArrayList<String>();
-		sd.add("济南市");
+		List<Map<String, String>> sd = new ArrayList<Map<String, String>>();
+		
+		Map<String, String> jn = new HashMap<String, String>();
+		jn.put("city_name", "济南市");
+		jn.put("city_code", "0531");
+		sd.add(jn);
 		map3.put("province", "山东省");
-		map3.put("city", sd);
+		map3.put("citys", sd);
 		list.add(map3);
 		
 		rsEntity.setSuccess(true);
@@ -884,6 +1114,7 @@ public class AppApiController {
 		pageEntity.setLimit(0);
 		pageEntity.setStart(0);
 		pageEntity.setTotalCount(0);
+		pageEntity.setPage(0);
 		pageEntity.setErrors(errorInfo);
 		pageEntity.setPage(0);
 		

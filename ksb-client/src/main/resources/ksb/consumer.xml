@@ -8,8 +8,9 @@
 
 	<dubbo:application name="test_client" />
 
-	<dubbo:registry address="zookeeper://123.57.217.101:2181?backup=123.57.217.101:2182,123.57.217.101:2183" />
-	<!-- <dubbo:registry address="zookeeper://101.200.228.188:2181?backup=101.200.228.188:2182" /> --> 
+	<!-- <dubbo:registry address="zookeeper://123.57.217.101:2181?backup=123.57.217.101:2182,123.57.217.101:2183"/>--> 
+	
+	<dubbo:registry address="zookeeper://101.200.228.188:2181?backup=101.200.228.188:2182"/>
 	<dubbo:consumer timeout="60000" />
 
 	<dubbo:protocol name="dubbo" port="20880" />
@@ -19,6 +20,9 @@
 	
 	<dubbo:reference interface="com.ksb.openapi.mobile.service.CourierService" id="courierService" />
 	<dubbo:reference interface="com.ksb.openapi.mobile.service.ShipperService" id="shipperService" />
+	<dubbo:reference interface="com.ksb.openapi.mobile.service.RedisService" id="redisService" />
+	
+	<dubbo:reference interface="com.ksb.openapi.service.ProductVersionService" id="productVersionService" />
 	
 	<!-- 电商运单管理 -->
 	<dubbo:reference interface="com.ksb.openapi.mobile.service.EretailerService" id="eretailerService" />

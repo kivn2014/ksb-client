@@ -1,5 +1,7 @@
 package com.ksb.web.openapi.controller;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -8,15 +10,23 @@ import java.util.Map.Entry;
 
 import javax.servlet.http.HttpServletRequest;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.SystemPropertyUtils;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import com.ksb.openapi.em.ProductType;
 import com.ksb.openapi.service.WaybillService;
 import com.ksb.openapi.util.HTTPUtils;
 import com.ksb.web.openapi.entity.AjaxEntity;
@@ -32,14 +42,21 @@ public class OpenApiController {
 	@Autowired
 	WaybillService waybillService;
 	
+	@Value("#{sys['apk_file_path']}")
+	private String apkFilePath = null;// apk文件存放路径
 	
+	@Value("#{sys['shipper_app_name']}")
+	private String spFileName = null;// 商家版apk文件名
+	
+	@Value("#{sys['courier_app_name']}")
+	private String courierFileName = null;// 配送员版apk文件名	
 	
 	@RequestMapping("/login")
 	public String login() throws Exception {
-
 		return "/login";
 	}
 
+	
 	@RequestMapping("/main")
 	public String actionLogin() throws Exception {
 
@@ -52,6 +69,53 @@ public class OpenApiController {
 		return "address-v";
 	}
 
+	/**
+	 * 获取商家版APP最新版本信息
+	 * @return
+	 */
+	@RequestMapping("/sp_version")
+	public @ResponseBody String getShipperAppCurVersion(){
+		
+		return null;
+	}
+	
+	/**
+	 * 获取配送员版APP最新版本信息
+	 * @return
+	 */
+	@RequestMapping("/courier_version")
+	public @ResponseBody String getCourierAppCurVersion(){
+		
+		return null;
+	}
+	
+    @RequestMapping("/download/shippers_app")
+    public ResponseEntity<byte[]> downloadSpApp() throws IOException {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentDispositionFormData("attachment", spFileName);
+        
+        return new ResponseEntity<byte[]>(FileUtils.readFileToByteArray(new File(apkFilePath+spFileName)),
+                                          headers, HttpStatus.CREATED);
+    }
+
+    
+    @RequestMapping("/download/courier_app")
+    public ResponseEntity<byte[]> downloadCourierApp() throws IOException {
+    	
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentDispositionFormData("attachment", courierFileName);
+        return new ResponseEntity<byte[]>(FileUtils.readFileToByteArray(new File(apkFilePath+courierFileName)),
+                                          headers, HttpStatus.CREATED);
+    } 
+    
+	
+	/**
+	 * 百度地理编码服务地址验证
+	 * @param address
+	 * @return
+	 */
 	@RequestMapping("/bd_address")
 	public @ResponseBody String validateAddressByDBMap(String address) {
 

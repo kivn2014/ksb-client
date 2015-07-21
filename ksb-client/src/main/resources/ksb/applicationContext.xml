@@ -15,7 +15,6 @@
 						http://www.springframework.org/schema/util
 						http://www.springframework.org/schema/util/spring-util.xsd">
 
-
     <import resource="consumer.xml" />
 
 	<aop:aspectj-autoproxy />
@@ -24,12 +23,14 @@
 			expression="org.springframework.stereotype.Controller" />
 	</context:component-scan>
 	<context:annotation-config />
-	<bean id="dbConfPostProcessor"
+	<util:properties id="sys" location="classpath:ksb/system.properties"/>
+	
+<!-- 	<bean id="dbConfPostProcessor"
 		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
 		<property name="locations">
 			<list>
 				<value>classpath:ksb/redis.properties</value>
 			</list>
 		</property>
-	</bean>
+	</bean> -->
 </beans>

@@ -14,7 +14,15 @@ public class ResultPageEntity implements Serializable {
 	boolean success = false;
 	String errors;
 	long totalCount;
+	long totalPage;
 	List obj;
+	public long getTotalPage() {
+		return totalPage;
+	}
+
+	public void setTotalPage(long totalPage) {
+		this.totalPage = totalPage;
+	}
 
 	public long getPage() {
 		return page;
