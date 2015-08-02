@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -13,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.session.mgt.eis.EnterpriseCacheSessionDAO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,6 +24,7 @@ import com.ksb.openapi.entity.EnterpriseCityEntity;
 import com.ksb.openapi.entity.ResultEntity;
 import com.ksb.openapi.entity.ShipperEntity;
 import com.ksb.openapi.entity.ShipperUserEntity;
+import com.ksb.openapi.entity.ShipperWaybill;
 import com.ksb.openapi.entity.WayBillEntity;
 import com.ksb.openapi.mobile.service.CourierService;
 import com.ksb.openapi.mobile.service.EretailerService;
@@ -29,6 +32,7 @@ import com.ksb.openapi.mobile.service.MobileWaybillService;
 import com.ksb.openapi.mobile.service.O2oWaybillService;
 import com.ksb.openapi.mobile.service.RedisService;
 import com.ksb.openapi.mobile.service.ShipperService;
+import com.ksb.openapi.service.StatisticsService;
 import com.ksb.openapi.service.WaybillService;
 import com.ksb.openapi.util.DateUtil;
 import com.ksb.web.openapi.entity.ResultPageEntity;
@@ -56,7 +60,13 @@ public class AppApiController {
 	O2oWaybillService o2oWaybillService;
 	
 	@Autowired
+	StatisticsService statisticsService;
+	
+	@Autowired
 	RedisService redisService;
+	
+	@Value("#{sys['shipper_default_ent']}")
+	private String shipperDefaultEnt = null;
 	
 	/**
 	 * 手机用户登录
@@ -240,10 +250,38 @@ public class AppApiController {
 				redisService.recordCourierGps(this.cid, this.eid, this.x, this.y);
 			}catch(Exception e){}
 		}
-		
 	}
 	
-	
+	@RequestMapping("/add_custom_remarks")
+	public @ResponseBody
+	       ResultEntity addCustomRemarkByCourier(String cid,String id,String remarks){
+		
+		ResultEntity rs = new ResultEntity();
+		if(StringUtils.isBlank(cid)){
+			rs.setErrors("ER");
+			rs.setObj("配送员编号为空");
+			return rs;
+		}
+		
+		if(StringUtils.isBlank(id)){
+			rs.setErrors("ER");
+			rs.setObj("订单编号为空");
+			return rs;
+		}
+		
+		try{
+			o2oWaybillService.updateCustomRemark(cid, id, remarks);
+		}catch(Exception e){
+			rs.setErrors("ER");
+			rs.setObj(e.getMessage());
+			return rs;
+		}
+
+		rs.setSuccess(true);
+		rs.setErrors("OK");
+		rs.setObj("");
+		return rs;
+	}
 	
 	
 	/**
@@ -444,31 +482,31 @@ public class AppApiController {
 	 */
 	@RequestMapping("/sp_save_order")
 	public @ResponseBody
-	        ResultEntity shipperCreatewaybill(HttpServletRequest request){
+	        ResultEntity shipperCreatewaybill(ShipperWaybill shipperWaybill ){
 		
 		ResultEntity rsEntity = new ResultEntity();
 		
 		Map<String, String> saveMap = new HashMap<String, String>();
 		
-		String remarks = request.getParameter("remarks");
+		String remarks = shipperWaybill.getRemarks();
 		
 		saveMap.put("remarks", remarks);
 		
-		String shipperId = request.getParameter("sp_id");
+		String shipperId = shipperWaybill.getSp_id();
 		if(StringUtils.isBlank(shipperId)){
 			rsEntity.setErrors("ER");
 			rsEntity.setObj("商家编号为空");
 			return rsEntity;
 		}
 		
-		String cityCode = request.getParameter("city_code");
+		String cityCode = shipperWaybill.getCity_code();
 		if(StringUtils.isBlank(cityCode)){
 			rsEntity.setErrors("ER");
 			rsEntity.setObj("未指定城市");
 			return log.exit(rsEntity);
 		}
-		String x = request.getParameter("x");
-		String y = request.getParameter("y");
+		String x = shipperWaybill.getX();
+		String y = shipperWaybill.getY();
 		if(StringUtils.isBlank(x)||StringUtils.isBlank(y)){
 			rsEntity.setErrors("ER");
 			rsEntity.setObj("无法获取商家位置");
@@ -480,6 +518,18 @@ public class AppApiController {
 		saveMap.put("x", x);
 		saveMap.put("y", y);
 		saveMap.put("sp_id", shipperId);
+		saveMap.put("cargo_type", shipperWaybill.getCargo_type());
+		String cargoNum = shipperWaybill.getCargo_num();
+		if(StringUtils.isBlank(cargoNum)){
+			cargoNum = "1";
+		}
+		saveMap.put("cargo_num", cargoNum);
+		
+		String waybillNum = shipperWaybill.getNum();
+		if(StringUtils.isBlank(waybillNum)){
+			waybillNum = "1";
+		}
+		saveMap.put("waybill_num", waybillNum);
 		
 		/*根据citycode获取负责该城市配送的企业*/
 		List<EnterpriseCityEntity> list = shipperService.getEnterpriseAreaByCityInfo(null, null, cityCode, null);
@@ -489,33 +539,101 @@ public class AppApiController {
 			return log.exit(rsEntity);
 		}
 		
+		/*在附近没有配送员，商家提交的订单进入 “待接单” 列表时需要提醒商家--附近无可用的配送员，您的订单已经进入待接单列表中，请关注待接单列表*/
+		boolean isWarning = false;
 		/*获取最近的配送员*/
-		String courierId = queryNearCourier(list, x, y);
-		if(StringUtils.isBlank(courierId)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("附近无可用的配送员");
-			return log.exit(rsEntity);
+		
+		/*解析该城市可用的配送公司*/
+		StringBuilder sb = new StringBuilder("");
+        for(EnterpriseCityEntity ec : list){
+        	String eid = ec.getEnterprise_id();
+        	sb.append(eid+",");
+        }
+
+        String eids = sb.substring(0, sb.length()-1);
+		
+		String courierIdAndEid = queryNearCourier(eids, x, y);
+		if(StringUtils.isBlank(courierIdAndEid)){
+			/*没有合适 或者空闲的配送员*/
+			
+			/*查询有没有支持 支持手工干预订单的配送公司(是否可以收工干预订单是配送公司表中得一个字段，默认是可以干预)*/
+			String eid = getDeliveryEnt(list);
+			if(eid==null){
+				rsEntity.setErrors("ER");
+				rsEntity.setObj("该区域无可用的配送员");
+				return log.exit(rsEntity);
+			}
+			
+			saveMap.put("delivery_eid_id", eid);
+			
+			saveMap.put("status", "2");
+			
+			/*需要提醒商家 当前订单进入待配送列表*/
+			isWarning=true;
+		}else{
+			/*格式：配送员编号^隶属企业编号*/
+			String cs[] = courierIdAndEid.split("\\^");
+			saveMap.put("cid", cs[0]);
+			saveMap.put("delivery_eid_id", cs[1]);
 		}
 		
-		saveMap.put("cid", courierId);
-		
-		log.entry(saveMap);
+		//log.entry(saveMap);
 		try{
 		    shipperService.createWaybill(saveMap);
 		}catch(Exception e){
 			rsEntity.setErrors("ER");
-			rsEntity.setObj(e.getMessage());
+			rsEntity.setObj("系统异常：提交失败");
 			return log.exit(rsEntity);
 		}
 		
 		/*配送状态异步同步到redis中*/
-		new AsynDeliveryStatus(courierId,"1").run();
-		
+		//new AsynDeliveryStatus(courierId,"1").run();
+		if(isWarning){
+			rsEntity.setSuccess(true);
+			rsEntity.setErrors("OK");
+			rsEntity.setObj("提醒:配送员都在忙碌中,我们会尽快处理您的订单");
+			return log.exit(rsEntity);
+		}
 		rsEntity.setSuccess(true);
 		rsEntity.setErrors("OK");
-		rsEntity.setObj("");
+		rsEntity.setObj("提交成功,我们配送员已经接单");
 		return log.exit(rsEntity);
 	}	
+	
+	/**
+	 * 
+	 * @param entList
+	 * @return
+	 */
+	String getDeliveryEnt(List<EnterpriseCityEntity> entList){
+		
+		/*检索支持手工干预订单的配送公司*/
+		List<String> psEnt = new ArrayList<String>();
+		
+//		StringBuilder sb = new StringBuilder("");
+		for(EnterpriseCityEntity ec : entList){
+			String manual = ec.getManual();
+			if(StringUtils.isNotBlank(manual)){
+				if(manual.equals("0")){
+					psEnt.add(ec.getEnterprise_id());
+				}
+			}
+			//sb.append(ec.getEnterprise_id()+",");
+		}
+		
+		/*该地区的配送公司*/
+//		String eids = sb.substring(0, sb.length()-1);
+		if(psEnt==null || psEnt.size()==0){
+			return null;
+		}
+		
+		/*随机返回一个配送公司*/
+		int index = 0;
+		if(psEnt.size()>1){
+			index = new Random().nextInt(psEnt.size());
+		}
+		return psEnt.get(index);
+	}
 	
 	
 	/**
@@ -543,27 +661,16 @@ public class AppApiController {
 	
 	
 	
-	
-	private String queryNearCourier(List<EnterpriseCityEntity> list,String x,String y){
+	private String queryNearCourier(String eids,String x,String y){
 		List<String> courierList = new ArrayList<String>();
         /*查询商家周边(默认3公里)范围内的配送员，如果是多个商家，则在比较多个商家中那个离的最近(后期考虑增加权重值，用于做订单的优先分配)*/
 		
 //		boolean redisIsWork = redisService.redisIsWork();
-        for(EnterpriseCityEntity ec : list){
-        	String eid = ec.getEnterprise_id();
-        	List<String> tmpList = null;
-//        	if(redisIsWork){
-//            	tmpList = redisService.queryNearCourier(eid, x, y);
-//        	}else{
-        		tmpList = courierService.queryNearCourier(eid, x, y);
-//        	}
-
-        	if(tmpList!=null&&tmpList.size()>0){
-        		courierList.addAll(tmpList);
-        	}
-        }
+		
+        log.entry("courierService.queryNearCourier",eids,x,y);
+        courierList = courierService.queryNearCourier(eids, x, y);
         
-        log.entry("redis中检索配送员结果: ",courierList);
+        log.entry("数据库中检索配送员结果: ",courierList);
         if(courierList==null||courierList.size()==0){
 			return null;
         }
@@ -707,7 +814,7 @@ public class AppApiController {
 		}
 		String opType = request.getParameter("t");
 		if(StringUtils.isBlank(opType)){
-			opType = "1";
+			opType = "2";
 		}
 		
 		ResultPageEntity rsEntity = new ResultPageEntity();
@@ -849,19 +956,21 @@ public class AppApiController {
 		}
 		paraMap.put("id", id);
 		
-        String cid = request.getParameter("cid");
-		if(StringUtils.isBlank(cid)){
-			rs.setObj("配送员ID为空");
-			rs.setErrors("ER");
-			return rs;
-		}
-		paraMap.put("cid", cid);
         String status = request.getParameter("status");
 		if(StringUtils.isBlank(status)){
 			rs.setObj("运单状态为空");
 			rs.setErrors("ER");
 			return rs;
 		}
+		
+        String cid = request.getParameter("cid");
+		if(StringUtils.isBlank(cid)){
+			rs.setObj("操作员ID为空");
+			rs.setErrors("ER");
+			return rs;
+		}
+		paraMap.put("cid", cid);
+		
 		paraMap.put("status", status);
 		String remarks = request.getParameter("remarks");
 		paraMap.put("remarks", remarks);
@@ -998,6 +1107,81 @@ public class AppApiController {
 		rs.setErrors("OK");
 		return rs;
 	}
+	
+	@RequestMapping("/sp_handle_waybill")
+	public @ResponseBody
+	       ResultEntity handleWaybill(String sp_id,String sp_uid,String status,String id){
+		
+		ResultEntity rsEntity = new ResultEntity();
+		
+		if(StringUtils.isBlank(sp_id)){
+			rsEntity.setErrors("ER");
+			rsEntity.setObj("商家编号为空");
+			return rsEntity;
+		}
+		if(StringUtils.isBlank(id)){
+			rsEntity.setErrors("ER");
+			rsEntity.setObj("订单编号为空");
+			return rsEntity;
+		}		
+		if(StringUtils.isBlank(status)){
+			rsEntity.setErrors("ER");
+			rsEntity.setObj("状态值为空");
+			return rsEntity;
+		}		
+		try{
+			 shipperService.shipperHandleWaybill(sp_id, sp_uid, id, status);
+		}catch(Exception e){
+			rsEntity.setSuccess(false);
+			rsEntity.setErrors(e.getMessage());
+			return log.exit(rsEntity);
+		}
+			
+		rsEntity.setSuccess(true);
+		rsEntity.setObj("");
+		rsEntity.setErrors("OK");
+			
+		return log.exit(rsEntity);
+	}
+	
+	@RequestMapping("/count_sp_waybill")
+	public @ResponseBody
+	       ResultEntity countShipperWaybillByDate(String sp_id,String sp_uid,String st,String et){
+		
+		ResultEntity rsEntity = new ResultEntity();
+		
+		if(StringUtils.isBlank(sp_id)){
+			rsEntity.setErrors("ER");
+			rsEntity.setObj("商家编号为空");
+			return rsEntity;
+		}
+		if(StringUtils.isBlank(st)||StringUtils.isBlank(et)){
+			rsEntity.setErrors("ER");
+			rsEntity.setObj("请指定查询时间范围");
+			return rsEntity;
+		}		
+		
+		
+		Map<String, Map<String, String>> rsMap = new HashMap<String, Map<String,String>>();
+		try{
+			long startTime = DateUtil.getStartTime(st);
+			long endTime = DateUtil.getEndTime(et);
+			
+			rsMap = statisticsService.groupQueryShipperStatusByDate(sp_id, sp_uid, startTime, endTime);
+		}catch(Exception e){
+			rsEntity.setSuccess(false);
+			rsEntity.setErrors(e.getMessage());
+			return log.exit(rsEntity);
+		}
+			
+		rsEntity.setSuccess(true);
+		rsEntity.setObj(rsMap);
+		rsEntity.setErrors("OK");
+			
+		return log.exit(rsEntity);
+	}
+	
+	
 	
 	
 	/**

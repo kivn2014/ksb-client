@@ -1,6 +1,9 @@
 package com.ksb.web.openapi.controller;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -9,6 +12,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
@@ -25,8 +29,16 @@ import org.springframework.util.SystemPropertyUtils;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.servlet.ModelAndView;
 
 import com.ksb.openapi.em.ProductType;
+import com.ksb.openapi.entity.EnterpriseEntity;
+import com.ksb.openapi.entity.ProductVersionEntity;
+import com.ksb.openapi.entity.ResultEntity;
+import com.ksb.openapi.entity.ShipperEntity;
+import com.ksb.openapi.error.BaseSupportException;
+import com.ksb.openapi.mobile.service.ShipperService;
+import com.ksb.openapi.service.ProductVersionService;
 import com.ksb.openapi.service.WaybillService;
 import com.ksb.openapi.util.HTTPUtils;
 import com.ksb.web.openapi.entity.AjaxEntity;
@@ -42,6 +54,12 @@ public class OpenApiController {
 	@Autowired
 	WaybillService waybillService;
 	
+	@Autowired
+	ProductVersionService productVersionService;
+	
+	@Autowired
+	ShipperService shipperService;
+	
 	@Value("#{sys['apk_file_path']}")
 	private String apkFilePath = null;// apk文件存放路径
 	
@@ -50,6 +68,10 @@ public class OpenApiController {
 	
 	@Value("#{sys['courier_app_name']}")
 	private String courierFileName = null;// 配送员版apk文件名	
+	
+	@Value("#{sys['shipper_default_ent']}")
+	private String shipperDefaultEnt = null;
+	
 	
 	@RequestMapping("/login")
 	public String login() throws Exception {
@@ -69,14 +91,111 @@ public class OpenApiController {
 		return "address-v";
 	}
 
+	@RequestMapping("/add_delivery_ent")
+	public @ResponseBody 
+	       ResultEntity createEnterprise(EnterpriseEntity enterprise){
+		
+		ResultEntity rs = new ResultEntity();
+		rs.setErrors("ER");
+		if(enterprise==null){
+			rs.setObj("参数为空");
+			return rs;
+		}
+		if(StringUtils.isBlank(enterprise.getCity())){
+			rs.setObj("城市为空");
+			return rs;
+		}
+		if(StringUtils.isBlank(enterprise.getName())){
+			rs.setObj("公司名称为空");
+			return rs;
+		}		
+		if(StringUtils.isBlank(enterprise.getContact())){
+			rs.setObj("联系人为空");
+			return rs;
+		}
+		if(StringUtils.isBlank(enterprise.getTel())){
+			rs.setObj("联系电话为空");
+			return rs;
+		}
+		/*新创建的企业，默认状态是待审(不能接受新单)*/
+		enterprise.setStatus("2");
+		try{
+			shipperService.createEnterprise(enterprise);
+		}catch(Exception e){
+			rs.setObj(e.getMessage());
+			return rs;
+		}
+		
+		rs.setErrors("OK");
+		rs.setObj("");
+		rs.setSuccess(true);
+		return rs;
+	}
+	
+	@RequestMapping("/add_shipper")
+	public @ResponseBody 
+	       ResultEntity createShipper(ShipperEntity enterprise){
+		
+		ResultEntity rs = new ResultEntity();
+		rs.setErrors("ER");
+		if(enterprise==null){
+			rs.setObj("参数为空");
+			return rs;
+		}
+		if(StringUtils.isBlank(enterprise.getCity())){
+			rs.setObj("城市为空");
+			return rs;
+		}
+		if(StringUtils.isBlank(enterprise.getName())){
+			rs.setObj("名称为空");
+			return rs;
+		}		
+		if(StringUtils.isBlank(enterprise.getContact())){
+			rs.setObj("联系人为空");
+			return rs;
+		}
+		if(StringUtils.isBlank(enterprise.getTel())){
+			rs.setObj("联系电话为空");
+			return rs;
+		}
+		/*新创建的商家，默认状态是待审(不能使用商家版APP)*/
+		enterprise.setStatus("2");		
+		try{
+			shipperService.createShipper(enterprise, shipperDefaultEnt);
+		}catch(Exception e){
+			rs.setObj(e.getMessage());
+			return rs;
+		}
+		
+		rs.setErrors("OK");
+		rs.setObj("");
+		rs.setSuccess(true);
+		return rs;
+	}	
+	
+	
 	/**
 	 * 获取商家版APP最新版本信息
 	 * @return
 	 */
 	@RequestMapping("/sp_version")
-	public @ResponseBody String getShipperAppCurVersion(){
+	public @ResponseBody 
+	       ResultEntity getShipperAppCurVersion(){
 		
-		return null;
+		ResultEntity rs = new ResultEntity();
+		ProductVersionEntity entity = new ProductVersionEntity();
+		try{
+			entity = productVersionService.queryLatestVersion(ProductType.SP.getName());
+		}catch(Exception e){
+			rs.setObj(e.getMessage());
+			rs.setErrors("ER");
+			return rs;
+		}
+		
+		rs.setSuccess(true);
+		rs.setObj(entity);
+		rs.setErrors("OK");
+		return rs;
 	}
 	
 	/**
@@ -84,30 +203,97 @@ public class OpenApiController {
 	 * @return
 	 */
 	@RequestMapping("/courier_version")
-	public @ResponseBody String getCourierAppCurVersion(){
+	public @ResponseBody 
+	       ResultEntity getCourierAppCurVersion(){
 		
-		return null;
+		ResultEntity rs = new ResultEntity();
+		ProductVersionEntity entity = new ProductVersionEntity();
+		try{
+			entity = productVersionService.queryLatestVersion(ProductType.COURIER.getName());
+		}catch(Exception e){
+			rs.setObj(e.getMessage());
+			rs.setErrors("ER");
+			return rs;
+		}
+		
+		rs.setSuccess(true);
+		rs.setObj(entity);
+		rs.setErrors("OK");
+		return rs;
 	}
 	
     @RequestMapping("/download/shippers_app")
-    public ResponseEntity<byte[]> downloadSpApp() throws IOException {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        headers.setContentDispositionFormData("attachment", spFileName);
-        
-        return new ResponseEntity<byte[]>(FileUtils.readFileToByteArray(new File(apkFilePath+spFileName)),
-                                          headers, HttpStatus.CREATED);
-    }
+    public ModelAndView downloadSpApp(HttpServletRequest request, HttpServletResponse response,String v){
+       
 
+		java.io.BufferedInputStream bis = null;
+		java.io.BufferedOutputStream bos = null;
+		String apkFile = apkFilePath + "shippers_app" + File.separator + v+ File.separator + spFileName;
+
+		try {
+			response.setContentType("text/html;charset=utf-8");
+			request.setCharacterEncoding("UTF-8");
+			
+			long fileLength = new File(apkFile).length();
+			response.setContentType("application/x-download;");
+			response.setHeader("Content-disposition", "attachment; filename="+ spFileName);
+			response.setHeader("Content-Length", String.valueOf(fileLength));
+			bis = new BufferedInputStream(new FileInputStream(apkFile));
+			bos = new BufferedOutputStream(response.getOutputStream());
+			byte[] buff = new byte[2048];
+			int bytesRead;
+			while (-1 != (bytesRead = bis.read(buff, 0, buff.length))) {
+				bos.write(buff, 0, bytesRead);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			try{
+				if (bis != null)
+					bis.close();
+				if (bos != null)
+					bos.close();
+			}catch(Exception e){}
+		}
+
+        return null;
+    }
     
     @RequestMapping("/download/courier_app")
-    public ResponseEntity<byte[]> downloadCourierApp() throws IOException {
+    public ResponseEntity<byte[]> downloadCourierApp(HttpServletRequest request, HttpServletResponse response,String v) throws IOException {
     	
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        headers.setContentDispositionFormData("attachment", courierFileName);
-        return new ResponseEntity<byte[]>(FileUtils.readFileToByteArray(new File(apkFilePath+courierFileName)),
-                                          headers, HttpStatus.CREATED);
+    	 String apkFile = apkFilePath+"courier_app"+File.separator+v+File.separator+courierFileName;
+    	 
+ 		java.io.BufferedInputStream bis = null;
+ 		java.io.BufferedOutputStream bos = null;
+
+ 		try {
+ 			response.setContentType("text/html;charset=utf-8");
+ 			request.setCharacterEncoding("UTF-8");
+ 			
+ 			long fileLength = new File(apkFile).length();
+ 			response.setContentType("application/x-download;");
+ 			response.setHeader("Content-disposition", "attachment; filename="+ courierFileName);
+ 			response.setHeader("Content-Length", String.valueOf(fileLength));
+ 			bis = new BufferedInputStream(new FileInputStream(apkFile));
+ 			bos = new BufferedOutputStream(response.getOutputStream());
+ 			byte[] buff = new byte[2048];
+ 			int bytesRead;
+ 			while (-1 != (bytesRead = bis.read(buff, 0, buff.length))) {
+ 				bos.write(buff, 0, bytesRead);
+ 			}
+ 		} catch (Exception e) {
+ 			e.printStackTrace();
+ 		} finally {
+ 			try{
+ 				if (bis != null)
+ 					bis.close();
+ 				if (bos != null)
+ 					bos.close();
+ 			}catch(Exception e){}
+ 		}
+
+         return null;
     } 
     
 	

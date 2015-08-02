@@ -132,6 +132,11 @@
 		class="org.springframework.context.support.ResourceBundleMessageSource"
 		p:basename="i18n/messages" />
 
+
+<mvc:interceptors>
+	<bean class="com.ksb.api.SystemInterceptor" />
+</mvc:interceptors>
+
 	<!-- 配置异常抛出的对应页面 -->
 	<bean
 		class="org.springframework.web.servlet.handler.SimpleMappingExceptionResolver">

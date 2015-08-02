@@ -8,11 +8,11 @@
 
 	<dubbo:application name="test_client" />
 
-	<!-- <dubbo:registry address="zookeeper://123.57.217.101:2181?backup=123.57.217.101:2182,123.57.217.101:2183"/>--> 
-	
+	<!-- <dubbo:registry address="zookeeper://123.57.217.101:2181?backup=123.57.217.101:2182,123.57.217.101:2183"/>-->
 	<dubbo:registry address="zookeeper://101.200.228.188:2181?backup=101.200.228.188:2182"/>
+	
+	
 	<dubbo:consumer timeout="60000" />
-
 	<dubbo:protocol name="dubbo" port="20880" />
 	
 	<dubbo:reference interface="com.ksb.openapi.service.WaybillService" id="waybillService" />
@@ -28,4 +28,6 @@
 	<dubbo:reference interface="com.ksb.openapi.mobile.service.EretailerService" id="eretailerService" />
 	<!-- O2O运单管理 -->
 	<dubbo:reference interface="com.ksb.openapi.mobile.service.O2oWaybillService" id="o2oWaybillService" />
+	<!-- 统计服务 -->
+	<dubbo:reference interface="com.ksb.openapi.service.StatisticsService" id="statisticsService" />
 </beans>
