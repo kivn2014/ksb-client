@@ -73,24 +73,6 @@ public class OpenApiController {
 	private String shipperDefaultEnt = null;
 	
 	
-	@RequestMapping("/login")
-	public String login() throws Exception {
-		return "/login";
-	}
-
-	
-	@RequestMapping("/main")
-	public String actionLogin() throws Exception {
-
-		return "main";
-	}
-
-	@RequestMapping("/address")
-	public String validateAddress() throws Exception {
-
-		return "address-v";
-	}
-
 	@RequestMapping("/add_delivery_ent")
 	public @ResponseBody 
 	       ResultEntity createEnterprise(EnterpriseEntity enterprise){
@@ -228,6 +210,12 @@ public class OpenApiController {
 
 		java.io.BufferedInputStream bis = null;
 		java.io.BufferedOutputStream bos = null;
+		
+		/*不提供版本号，默认下载最新版本*/
+		if(StringUtils.isBlank(v)){
+			v = "latest_version";
+		}
+		
 		String apkFile = apkFilePath + "shippers_app" + File.separator + v+ File.separator + spFileName;
 
 		try {
