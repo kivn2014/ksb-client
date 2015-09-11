@@ -72,24 +72,12 @@
   </servlet-mapping>
   <servlet>
     <description></description>
-    <display-name>InitTestServlet</display-name>
-    <servlet-name>InitTestServlet</servlet-name>
-    <servlet-class>com.ksb.api.InitTestServlet</servlet-class>
+    <servlet-name>InitServlet</servlet-name>
+    <servlet-class>com.ksb.web.openapi.controller.InitServlet</servlet-class>
+    <load-on-startup>2</load-on-startup>
   </servlet>
-  <servlet-mapping>
-    <servlet-name>InitTestServlet</servlet-name>
-    <url-pattern>/test</url-pattern>
-  </servlet-mapping>
   <welcome-file-list>
     <welcome-file>index.html</welcome-file>
   </welcome-file-list>
-  <filter>
-    <display-name>SystemInterceptor</display-name>
-    <filter-name>SystemInterceptor</filter-name>
-    <filter-class>com.ksb.api.SystemInterceptor</filter-class>
-  </filter>
-  <filter-mapping>
-    <filter-name>SystemInterceptor</filter-name>
-    <url-pattern>/SystemInterceptor</url-pattern>
-  </filter-mapping>
+
 </web-app>

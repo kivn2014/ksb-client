@@ -117,25 +117,21 @@
 	</bean>
 
 	<!-- 开启文件上传功能。注意：id一定要是multipartResolver -->
-	<bean id="multipartResolver"
+	<!-- <bean id="multipartResolver"
 		class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
 
-		<!-- one of the properties available; the maximum file size in bytes -->
+		one of the properties available; the maximum file size in bytes
 		<property name="maxUploadSize" value="104857600" />
 		<property name="defaultEncoding">
 			<value>UTF-8</value>
 		</property>
-	</bean>
+	</bean> -->
 
 	<!-- i18n支持 -->
 	<bean id="messageSource"
 		class="org.springframework.context.support.ResourceBundleMessageSource"
 		p:basename="i18n/messages" />
 
-
-<mvc:interceptors>
-	<bean class="com.ksb.api.SystemInterceptor" />
-</mvc:interceptors>
 
 	<!-- 配置异常抛出的对应页面 -->
 	<bean
