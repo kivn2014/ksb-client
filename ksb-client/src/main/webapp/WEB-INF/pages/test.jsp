@@ -12,16 +12,17 @@
 
     <title>test</title>
     <body > 
-      <form name="uploadForm" method="POST" action="makeup_buyinfo"> 
+      <form name="uploadForm" method="POST" action="sp_add_address"> 
  
-        订单编号:<input type="text" name="wbid" value="3km-1" size="30"/><br/>
-        配送员编号:<input type="text" name="cid" value="608224890197114880" size="30"/> <br/>
-        买家 名称:<input type="text" name="name" size="30"/> <br/>
-        买家 电话:<input type="text" name="phone" size="30"/> <br/>
-        买家地址:<input type="text" name="address" size="30"/><br/>
-        商家经度:<input type="text" name="sp_x" value="116.31096385344" size="30"/><br/>
-        买家地址:<input type="text" name="sp_y" value="39.990285720615" size="30"/> <br/>
-        
+        商家编号:<input type="text" name="sp_id" value="643339214603026432" size="30"/><br/>
+        <!-- 地址编号:<input type="text" name="id" value="1" size="10"/><br/> -->
+        联系人:<input type="text" name="contact" value="王先生" size="30"/><br/>
+        联系人电话:<input type="text" name="phone" value="110" size="30"/> <br/>
+        地址:<input type="text" name="address" value="北京市海淀区苏州街银科大厦" size="30"/> <br/>
+        铭牌号:<input type="text" name="address_detail" value="8层" size="30"/> <br/>
+        经度:<input type="text" name="address_x" value="116.590872" size="30"/><br/>
+        维度:<input type="text" name="address_y" value="39.4348762" size="30"/><br/>
+        citycode:<input type="text" name="city_code" value="010" size="30"/> <br/>
         
         <input type="submit" name="submit" value="submit"> 
         <input type="reset" name="reset" value="reset"> 

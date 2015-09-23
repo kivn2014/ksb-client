@@ -23,6 +23,7 @@ import com.ksb.openapi.entity.BuyerEntity;
 import com.ksb.openapi.entity.CourierEntity;
 import com.ksb.openapi.entity.EnterpriseCityEntity;
 import com.ksb.openapi.entity.ResultEntity;
+import com.ksb.openapi.entity.ShipperAddressEntity;
 import com.ksb.openapi.entity.ShipperEntity;
 import com.ksb.openapi.entity.ShipperUserEntity;
 import com.ksb.openapi.entity.ShipperWaybill;
@@ -35,6 +36,7 @@ import com.ksb.openapi.mobile.service.RedisService;
 import com.ksb.openapi.mobile.service.ShipperService;
 import com.ksb.openapi.service.StatisticsService;
 import com.ksb.openapi.util.DateUtil;
+import com.ksb.openapi.util.ToolsUtil;
 import com.ksb.web.openapi.entity.OrderSaveEntity;
 import com.ksb.web.openapi.entity.ResultPageEntity;
 import com.ksb.web.openapi.util.FileUploadUtil;
@@ -80,7 +82,12 @@ public class AppApiController {
 	@Value("#{sys['img_suffix']}")
 	public String IMAGE_SUFFIX = null;
 	
-	
+	/**
+	 * 配送员拍照上传 外卖小票
+	 * @param req
+	 * @param resp
+	 * @return
+	 */
 	@RequestMapping("/upload_img")
 	public @ResponseBody
 	       ResultEntity uploadImg(HttpServletRequest req,HttpServletResponse resp){
@@ -122,10 +129,28 @@ public class AppApiController {
 				return getErrorEntity("应付商家费用为空");
 			} 
 			
+			/*判断应付商家费用*/
+			if(!ToolsUtil.isFloat(osn.getPay_sp_fee())){
+				return getErrorEntity("应付商家费用非数字");
+			}
+			
 			/*应收用户物品费*/
 			if(StringUtils.isBlank(osn.getFetch_buyer_fee())){
 				return getErrorEntity("应收客户费用为空");
 			}
+			
+			/*判断应付商家费用*/
+			if(!ToolsUtil.isFloat(osn.getFetch_buyer_fee())){
+				return getErrorEntity("应收客户费用非数字");
+			}
+
+			/*应收金额必须大于应付给商家的金额*/
+			double fetch_fee = Double.parseDouble(osn.getFetch_buyer_fee());
+			double pay_fee = Double.parseDouble(osn.getPay_sp_fee());
+			if(fetch_fee<pay_fee){
+				return getErrorEntity("应收客户费用必须大于应付金额");
+			}
+			
 			/*上传的文件路径和文件名写入到数据库中*/
 			o2oWaybillService.saveWaybillImgId(osn.getCid(), osn.getWb_id(), osn.getImg_id(),osn.getPay_sp_fee(),osn.getFetch_buyer_fee());
 			
@@ -139,6 +164,14 @@ public class AppApiController {
 		return rsEntity;
 	}
 	
+	/**
+	 * 配送员补录 外卖的买家用户信息并且生成配送里程
+	 * @param buyer
+	 * @param sp_x
+	 * @param sp_y
+	 * @param sp_id
+	 * @return
+	 */
 	@RequestMapping("/makeup_buyinfo")
 	public @ResponseBody
 	        ResultEntity saveWaybillBuyInfo(BuyerEntity buyer,String sp_x,String sp_y,String sp_id){
@@ -165,6 +198,12 @@ public class AppApiController {
 			return getErrorEntity("用户名为空");
 		}
 		
+		/*客户手机号*/
+		String phone = buyer.getPhone();
+		if(StringUtils.isBlank(phone)){
+			return getErrorEntity("手机号为空");
+		}
+		
 		/*订单编号*/
 		String wbid = buyer.getWbid();
 		if(StringUtils.isBlank(wbid)){
@@ -180,6 +219,10 @@ public class AppApiController {
 		/*商家经纬度*/
 		if(StringUtils.isBlank(sp_x) || StringUtils.isBlank(sp_y)){
 			return getErrorEntity("商家位置为空");
+		}
+		
+		if(StringUtils.isBlank(sp_id)){
+			return getErrorEntity("商家编号为空");
 		}
 		
 		try{
@@ -203,8 +246,9 @@ public class AppApiController {
 		return "test";
 	}
 	
+	
 	/**
-	 * 手机用户登录
+	 * 配送员APP用户登录
 	 * @param request
 	 * @return
 	 */
@@ -243,7 +287,7 @@ public class AppApiController {
 	}
 	
 	/**
-	 * 手机用户修改密码
+	 * 配送员APP用户修改密码
 	 * @param request
 	 * @return
 	 */
@@ -285,7 +329,7 @@ public class AppApiController {
 	} 
 	
 	/**
-	 * 开工、收工（更改work_status、经纬度字段）
+	 * 配送员APP，开工、收工（开工的同时上报经纬度信息）
 	 * @param cid
 	 * @return
 	 */
@@ -387,6 +431,14 @@ public class AppApiController {
 		}
 	}
 	
+	/**
+	 * 配送员APP，配送员手工为订单填写备注信息
+	 * @param cid
+	 * @param id
+	 * @param remarks
+	 * @return
+	 * @deprecated
+	 */
 	@RequestMapping("/add_custom_remarks")
 	public @ResponseBody
 	       ResultEntity addCustomRemarkByCourier(String cid,String id,String remarks){
@@ -420,7 +472,7 @@ public class AppApiController {
 	
 	
 	/**
-	 * 快递员配送统计(默认是当天配送)
+	 * 配送员APP，配送员今日配送情况(配送总单数、物品费用总额、应付商家费用、应收客户费用、应上缴费用)
 	 * @param cid
 	 * @return
 	 */
@@ -451,9 +503,10 @@ public class AppApiController {
 	}
 	
 	/**
-	 * 运单编号识别
+	 * 配送员APP，电商模块根据面单上的编号识别商家名称
 	 * @param id
 	 * @return
+	 * @deprecated
 	 */
 	@RequestMapping("/scan_identify")
 	public @ResponseBody
@@ -484,7 +537,7 @@ public class AppApiController {
 	}
 	
 	/**
-	 * 扫描运单
+	 * 配送员app,电商模块扫描面单上的条形码，并返回面单对应的订单基本信息
 	 * @param id
 	 * @param cid
 	 * @return
@@ -543,7 +596,7 @@ public class AppApiController {
 	}
 	
 	/**
-	 * 电商运单入库
+	 * 配送员APP，电商模块电商运单入库
 	 * @param request
 	 * @return
 	 */
@@ -611,8 +664,8 @@ public class AppApiController {
 	}
 	
 	/**
-	 * 电商运单入库
-	 * @param request
+	 * 商家版APP，商家发布配送需求
+	 * @param shipperWaybill
 	 * @return
 	 */
 	@RequestMapping("/sp_save_order")
@@ -650,12 +703,13 @@ public class AppApiController {
 		}
 		
 		saveMap.put("city_code", cityCode);
+		saveMap.put("city_name", shipperWaybill.getCity_name());
+		
+		/*商家经纬度(用于订单分配)*/
 		saveMap.put("x", x);
 		saveMap.put("y", y);
 		saveMap.put("sp_id", shipperId);
 		saveMap.put("cargo_type", shipperWaybill.getCargo_type());
-		
-		
 		
 		String cargoNum = shipperWaybill.getCargo_num();
 		if(StringUtils.isBlank(cargoNum)){
@@ -664,9 +718,17 @@ public class AppApiController {
 		saveMap.put("cargo_num", cargoNum);
 		
 		String waybillNum = shipperWaybill.getNum();
-		if(StringUtils.isBlank(waybillNum)){
+		
+		/*订单总量为空或者为0，默认设置为1*/
+		if(StringUtils.isBlank(waybillNum)||"0".equals(waybillNum)){
 			waybillNum = "1";
 		}
+		
+		/*判断订单数量是否是数字*/
+		if(!ToolsUtil.isInt(waybillNum)){
+			return getErrorEntity("订单量必须是数字");
+		}
+		
 		saveMap.put("waybill_num", waybillNum);
 		
 		/*物品费用*/
@@ -676,57 +738,13 @@ public class AppApiController {
 		/*配送员手机号(如果不为空则为驻店模式)*/
 		String c_phone = shipperWaybill.getC_phone();
 		
+		/*商家下单指定配送员*/
+		saveMap.put("c_phone", c_phone);
+		saveMap.put("status", "2");
 		
-		boolean isWarning = false;
-		/*驻店模式 / 商家直接把订单分配给配送员 */
-		if(StringUtils.isBlank(c_phone)){
-			/*根据citycode获取负责该城市配送的企业*/
-			List<EnterpriseCityEntity> list = shipperService.getEnterpriseAreaByCityInfo(null, null, cityCode, null);
-			if(list==null||list.size()==0){
-				rsEntity.setErrors("ER");
-				rsEntity.setObj("该城市暂时无法配送");
-				return log.exit(rsEntity);
-			}
-			
-			/*在附近没有配送员，商家提交的订单进入 “待接单” 列表时需要提醒商家--附近无可用的配送员，您的订单已经进入待接单列表中，请关注待接单列表*/
-			
-			/*获取最近的配送员*/
-			
-			/*解析该城市可用的配送公司*/
-			StringBuilder sb = new StringBuilder("");
-	        for(EnterpriseCityEntity ec : list){
-	        	String eid = ec.getEnterprise_id();
-	        	sb.append(eid+",");
-	        }
-
-	        String eids = sb.substring(0, sb.length()-1);
-			
-			String courierIdAndEid = queryNearCourier(eids, x, y);
-			if(StringUtils.isBlank(courierIdAndEid)){
-				/*没有合适 或者空闲的配送员*/
-				
-				/*查询有没有支持 支持手工干预订单的配送公司(是否可以收工干预订单是配送公司表中得一个字段，默认是可以干预)*/
-				String eid = getDeliveryEnt(list);
-				if(eid==null){
-					rsEntity.setErrors("ER");
-					rsEntity.setObj("该区域无可用的配送员");
-					return log.exit(rsEntity);
-				}
-				
-				saveMap.put("delivery_eid_id", eid);
-				
-				saveMap.put("status", "2");
-				
-				/*需要提醒商家 当前订单进入待配送列表*/
-				isWarning=true;
-			}else{
-				/*格式：配送员编号^隶属企业编号*/
-				String cs[] = courierIdAndEid.split("\\^");
-				saveMap.put("cid", cs[0]);
-				saveMap.put("delivery_eid_id", cs[1]);
-			}
-		}else{
-			/*根据手机号查询配送员ID和配送员隶属的企业ID*/
+		/*驻店模式*/
+		if(StringUtils.isNotBlank(c_phone)){
+			/*查询配送员是否存在*/
 			CourierEntity courierEntity = courierService.queryCourier(null, null, c_phone);
 			/*未找到指定的配送员*/
 			if(courierEntity == null){
@@ -747,53 +765,10 @@ public class AppApiController {
 			return log.exit(rsEntity);
 		}
 		
-		/*配送状态异步同步到redis中*/
-		//new AsynDeliveryStatus(courierId,"1").run();
-		if(isWarning){
-			rsEntity.setSuccess(true);
-			rsEntity.setErrors("OK");
-			rsEntity.setObj("提醒:配送员都在忙碌中,我们会尽快处理您的订单");
-			return log.exit(rsEntity);
-		}
 		rsEntity.setSuccess(true);
 		rsEntity.setErrors("OK");
-		rsEntity.setObj("提交成功,我们配送员已经接单");
+		rsEntity.setObj("订单提交成功!");
 		return log.exit(rsEntity);
-	}
-	
-	/**
-	 * 
-	 * @param entList
-	 * @return
-	 */
-	String getDeliveryEnt(List<EnterpriseCityEntity> entList){
-		
-		/*检索支持手工干预订单的配送公司*/
-		List<String> psEnt = new ArrayList<String>();
-		
-//		StringBuilder sb = new StringBuilder("");
-		for(EnterpriseCityEntity ec : entList){
-			String manual = ec.getManual();
-			if(StringUtils.isNotBlank(manual)){
-				if(manual.equals("0")){
-					psEnt.add(ec.getEnterprise_id());
-				}
-			}
-			//sb.append(ec.getEnterprise_id()+",");
-		}
-		
-		/*该地区的配送公司*/
-//		String eids = sb.substring(0, sb.length()-1);
-		if(psEnt==null || psEnt.size()==0){
-			return null;
-		}
-		
-		/*随机返回一个配送公司*/
-		int index = 0;
-		if(psEnt.size()>1){
-			index = new Random().nextInt(psEnt.size());
-		}
-		return psEnt.get(index);
 	}
 	
 	
@@ -821,7 +796,13 @@ public class AppApiController {
 	}
 	
 	
-	
+	/**
+	 * 查询周边3公里范围内的空闲配送员
+	 * @param eids
+	 * @param x
+	 * @param y
+	 * @return
+	 */
 	private String queryNearCourier(String eids,String x,String y){
 		List<String> courierList = new ArrayList<String>();
         /*查询商家周边(默认3公里)范围内的配送员，如果是多个商家，则在比较多个商家中那个离的最近(后期考虑增加权重值，用于做订单的优先分配)*/
@@ -848,7 +829,7 @@ public class AppApiController {
 	}
 	
 	/**
-	 * 快递员
+	 * 配送员版APP，订单列表title，每个状态的订单数量
 	 * @param courierId
 	 * @return
 	 */
@@ -892,7 +873,7 @@ public class AppApiController {
 	}
 
 	/**
-	 * 商家版app 列表title，每个状态的运单数量
+	 * 商家版app， 订单列表title，每个状态的订单数量
 	 * @param sp_id
 	 * @return
 	 */
@@ -924,6 +905,10 @@ public class AppApiController {
 		return log.exit(rsEntity);
 	}	
 	
+	/**
+	 * 商家列表
+	 * @return
+	 */
 	@RequestMapping("/olsp_list")
 	public @ResponseBody
 	        ResultEntity olShipperList(){
@@ -946,6 +931,191 @@ public class AppApiController {
 		return log.exit(rsEntity);
 	}
 	
+	/**
+	 * 商家常用地址列表
+	 * @param sp_id
+	 * @return
+	 */
+	@RequestMapping("/sp_address_list")
+	public @ResponseBody
+	        ResultEntity shipperAddressList(String sp_id){
+		
+		ResultEntity rsEntity = new ResultEntity();
+		
+		if(StringUtils.isBlank(sp_id)){
+			return getErrorEntity("商家编号为空");
+		}
+		
+		List<ShipperAddressEntity> list = null;
+		try{
+			list = shipperService.queryShipperAddressList(sp_id);
+		}catch(Exception e){
+			return log.exit(getErrorEntity(e.getMessage()));
+		}
+		
+		rsEntity.setSuccess(true);
+		rsEntity.setErrors("OK");
+		rsEntity.setObj(list);
+		return log.exit(rsEntity);
+		
+	}
+	
+	/**
+	 * 商家增加发单地址
+	 * @param entity
+	 * @return
+	 */
+	@RequestMapping("/sp_add_address")
+	public @ResponseBody
+	        ResultEntity addShipperAddress(ShipperAddressEntity entity){
+		
+		if(entity==null){
+			return getErrorEntity("未上传任何参数");
+		}
+		
+		/*商家编号*/
+		if(StringUtils.isBlank(entity.getSp_id())){
+			return getErrorEntity("商家编号为空");
+		}
+		
+		/*地址信息*/
+		if(StringUtils.isBlank(entity.getAddress())){
+			return getErrorEntity("地址为空");
+		}
+		
+		/*联系人信息*/
+		if(StringUtils.isBlank(entity.getContact())){
+			return getErrorEntity("联系人为空");
+		}
+		
+		/*联系人手机号*/
+		if(StringUtils.isBlank(entity.getPhone())){
+			return getErrorEntity("联系人手机号为空");
+		}
+		
+		/*地址对应经纬度信息*/
+		if(StringUtils.isBlank(entity.getAddress_x()) || StringUtils.isBlank(entity.getAddress_y())){
+			return getErrorEntity("地址经纬度信息为空");
+		}
+		
+		/*citycode*/
+		if(StringUtils.isBlank(entity.getCity_code())){
+			return getErrorEntity("city_code为空");
+		}
+		
+		try{
+			shipperService.addShipperAddress(entity);
+		}catch(Exception e){
+			return getErrorEntity(e.getMessage());
+		}
+		
+		return getSuccessEntity("");
+	}
+	
+	/**
+	 * 商家常用地址列表中，设置一个为默认地址
+	 * @param sp_id
+	 * @param address_id
+	 * @return
+	 */
+	@RequestMapping("/sp_default_address")
+	public @ResponseBody 
+	        ResultEntity setShipperDefaultAddress(String sp_id,String address_id){
+		
+		if(StringUtils.isBlank(sp_id)){
+			return getErrorEntity("商家编号为空");
+		}
+		if(StringUtils.isBlank(address_id)){
+			return getErrorEntity("未指定商家地址");
+		}
+		
+		try{
+			shipperService.shipperDefaultAddress(sp_id, address_id);
+		}catch(Exception e){
+			return getErrorEntity(e.getMessage());
+		}
+		
+		return getSuccessEntity("");
+	}
+	
+	@RequestMapping("/edit_sp_address")
+	public @ResponseBody
+	        ResultEntity editShipperAddress(ShipperAddressEntity entity){
+		
+		if(entity==null){
+			return getErrorEntity("未上传任何参数");
+		}
+		
+		/*商家编号*/
+		if(StringUtils.isBlank(entity.getSp_id())){
+			return getErrorEntity("商家编号为空");
+		}
+		
+		/*商家地址编号*/
+		if(StringUtils.isBlank(entity.getId())){
+			return getErrorEntity("地址编号为空");
+		}
+		
+		/*地址信息*/
+		if(StringUtils.isBlank(entity.getAddress())){
+			return getErrorEntity("地址为空");
+		}
+		
+		/*联系人信息*/
+		if(StringUtils.isBlank(entity.getContact())){
+			return getErrorEntity("联系人为空");
+		}
+		
+		/*联系人手机号*/
+		if(StringUtils.isBlank(entity.getPhone())){
+			return getErrorEntity("联系人手机号为空");
+		}
+		
+		/*地址对应经纬度信息*/
+		if(StringUtils.isBlank(entity.getAddress_x()) || StringUtils.isBlank(entity.getAddress_y())){
+			return getErrorEntity("地址经纬度信息为空");
+		}
+		
+		/*citycode*/
+		if(StringUtils.isBlank(entity.getCity_code())){
+			return getErrorEntity("city_code为空");
+		}
+		
+		try{
+			shipperService.editShipperAddress(entity);
+		}catch(Exception e){
+			return getErrorEntity(e.getMessage());
+		}
+		
+		return getSuccessEntity("");
+	}
+	
+	@RequestMapping("/remove_sp_address")
+	public @ResponseBody
+	        ResultEntity removeShipperAddress(String sp_id,String address_id){
+		
+		if(StringUtils.isBlank(sp_id)){
+			return getErrorEntity("商家编号为空");
+		}
+		if(StringUtils.isBlank(address_id)){
+			return getErrorEntity("未指定商家地址");
+		}
+		
+		try{
+			shipperService.cancelShipperAddress(sp_id, address_id);
+		}catch(Exception e){
+			return getErrorEntity(e.getMessage());
+		}
+		
+		return getSuccessEntity("");
+	}
+	
+	
+	/**
+	 * 配送员APP，根据订单状态查询配送员当前天所有符合条件的订单
+	 * @param request
+	 * @return
+	 */
 	@RequestMapping("/query_courier_waybill")
 	public @ResponseBody
 	       ResultPageEntity searchWaybillByCourier(HttpServletRequest request){
@@ -1032,6 +1202,11 @@ public class AppApiController {
 		return log.exit(rsEntity);
 	}
 	
+	/**
+	 * 商家版APP，根据订单状态查询配送员当前天所有符合条件的订单
+	 * @param request
+	 * @return
+	 */
 	@RequestMapping("/query_sp_waybill")
 	public @ResponseBody
 	       ResultPageEntity searchWaybillByShipper(HttpServletRequest request){
@@ -1101,6 +1276,11 @@ public class AppApiController {
 		return log.exit(rsEntity);
 	}
 	
+	/**
+	 * 配送员版app，修改订单状态(取件、签收动作)
+	 * @param request
+	 * @return
+	 */
 	@RequestMapping("/handle_waybill")
 	public @ResponseBody
 	       ResultEntity updateWaybillStatusByCourier(HttpServletRequest request){
@@ -1146,11 +1326,11 @@ public class AppApiController {
 			return log.exit(rs);
 		}
 		
-		int statusInt = Integer.parseInt(status);
-		/*5表示配送完成，<0表示异常件或者订单取消*/
-		if(statusInt==5||statusInt<0){
-			//new AsynDeliveryStatus(cid, "0").run();
-		}
+//		int statusInt = Integer.parseInt(status);
+//		/*5表示配送完成，<0表示异常件或者订单取消*/
+//		if(statusInt==5||statusInt<0){
+//			//new AsynDeliveryStatus(cid, "0").run();
+//		}
 		
 		rs.setSuccess(true);
 		rs.setErrors("OK");
@@ -1158,6 +1338,12 @@ public class AppApiController {
 		return log.exit(rs);
 	}
 	
+	
+	/**
+	 * 配送员app，批量操作订单(批量取件、批量签收订单)
+	 * @param request
+	 * @return
+	 */
 	@RequestMapping("/batch_handle_waybill")
 	public @ResponseBody
 	       ResultEntity batchUpdateWaybillStatusByCourier(HttpServletRequest request){
@@ -1196,6 +1382,14 @@ public class AppApiController {
 		return rs;
 	}
 	
+	/**
+	 * 配送员APP，定期上报当前位置
+	 * @param cid
+	 * @param eid
+	 * @param x
+	 * @param y
+	 * @return
+	 */
 	@RequestMapping("/report_gps")
 	public @ResponseBody
 	        ResultEntity reportGps(String cid,String eid,String x,String y){
@@ -1219,6 +1413,12 @@ public class AppApiController {
 		return rs;
 	}
 	
+	/**
+	 * 商家版APP，用户登录
+	 * @param un
+	 * @param pwd
+	 * @return
+	 */
 	@RequestMapping("/sp_login")
 	public @ResponseBody
 	       ResultEntity shipperUserLogin(String un,String pwd){
@@ -1247,6 +1447,11 @@ public class AppApiController {
 		return rs;
 	}
 	
+	/**
+	 * 老版本商家版APP，设置商家位置(不支持商家地址列表)
+	 * @param entity
+	 * @return
+	 */
 	@RequestMapping("/sp_setaddress")
 	public @ResponseBody
 	       ResultEntity shipperSetAddress(ShipperUserEntity entity){
@@ -1266,6 +1471,14 @@ public class AppApiController {
 		return rs;
 	}
 	
+	/**
+	 * 商家版APP，修改订单状态(取消订单)
+	 * @param sp_id
+	 * @param sp_uid
+	 * @param status
+	 * @param id
+	 * @return
+	 */
 	@RequestMapping("/sp_handle_waybill")
 	public @ResponseBody
 	       ResultEntity handleWaybill(String sp_id,String sp_uid,String status,String id){
@@ -1302,6 +1515,14 @@ public class AppApiController {
 		return log.exit(rsEntity);
 	}
 	
+	/**
+	 * 商家版APP，根据日期取件查询发布的订单信息
+	 * @param sp_id
+	 * @param sp_uid
+	 * @param st
+	 * @param et
+	 * @return
+	 */
 	@RequestMapping("/count_sp_waybill")
 	public @ResponseBody
 	       ResultEntity countShipperWaybillByDate(String sp_id,String sp_uid,String st,String et){
@@ -1340,10 +1561,8 @@ public class AppApiController {
 	}
 	
 	
-	
-	
 	/**
-	 * 商家版app修改登录密码
+	 * 商家版app，修改登录密码
 	 * @param request
 	 * @return
 	 */
@@ -1388,6 +1607,10 @@ public class AppApiController {
 		return log.exit(rsEntity);
 	} 
 	
+	/**
+	 * 当前支持的配送城市列表
+	 * @return
+	 */
 	@RequestMapping("/city_list")
 	public @ResponseBody
 	       ResultEntity cityList(){
@@ -1449,7 +1672,11 @@ public class AppApiController {
 		return log.exit(rsEntity);
 	}
 	
-	
+	/**
+	 * 返回分页对象默认数据
+	 * @param errorInfo
+	 * @return
+	 */
 	public ResultPageEntity getDefaultPageErrorEntity(String errorInfo){
 		ResultPageEntity pageEntity = new ResultPageEntity();
 		pageEntity.setSuccess(false);
@@ -1463,8 +1690,16 @@ public class AppApiController {
 		return pageEntity;
 	}
 	
+	/**
+	 * 返回操作对象默认值(操作出现异常)
+	 * @param errorInfo
+	 * @return
+	 */
 	public ResultEntity getErrorEntity(String errorInfo){
-		
+		if(StringUtils.isNotBlank(errorInfo)){
+			errorInfo = errorInfo.replace("java.lang.reflect.UndeclaredThrowableException", "system error");
+			errorInfo = errorInfo.replace("com.ksb.openapi.error.BaseSupportException", "");
+		}
 		ResultEntity rs = new ResultEntity();
 		rs.setSuccess(false);
 		rs.setErrors(errorInfo);
@@ -1472,5 +1707,18 @@ public class AppApiController {
 		return rs;
 	}
 	
+	/**
+	 * 返回操作对象默认值(操作正常)
+	 * @param obj
+	 * @return
+	 */
+	public ResultEntity getSuccessEntity(Object obj){
+		ResultEntity rs = new ResultEntity();
+		rs.setSuccess(true);
+		rs.setErrors("OK");
+		rs.setObj(obj);
+		return rs;
+	} 
+
 	
 }
