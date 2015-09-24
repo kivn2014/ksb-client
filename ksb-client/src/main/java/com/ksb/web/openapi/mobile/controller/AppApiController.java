@@ -379,10 +379,7 @@ public class AppApiController {
 //		    new AsynRecordGps(cid, eid, x, y).run();
 		}
 		
-		rsEntity.setSuccess(true);
-		rsEntity.setErrors("OK");
-		rsEntity.setObj("");
-		return log.exit(rsEntity);
+		return getSuccessEntity("");
 	}
 	
 	/**
@@ -443,31 +440,21 @@ public class AppApiController {
 	public @ResponseBody
 	       ResultEntity addCustomRemarkByCourier(String cid,String id,String remarks){
 		
-		ResultEntity rs = new ResultEntity();
 		if(StringUtils.isBlank(cid)){
-			rs.setErrors("ER");
-			rs.setObj("配送员编号为空");
-			return rs;
+			return getErrorEntity("配送员编号为空");
 		}
 		
 		if(StringUtils.isBlank(id)){
-			rs.setErrors("ER");
-			rs.setObj("订单编号为空");
-			return rs;
+			return getErrorEntity("订单编号为空");
 		}
 		
 		try{
 			o2oWaybillService.updateCustomRemark(cid, id, remarks);
 		}catch(Exception e){
-			rs.setErrors("ER");
-			rs.setObj(e.getMessage());
-			return rs;
+			return getErrorEntity(e.getMessage());
 		}
 
-		rs.setSuccess(true);
-		rs.setErrors("OK");
-		rs.setObj("");
-		return rs;
+		return getSuccessEntity("");
 	}
 	
 	
@@ -480,26 +467,18 @@ public class AppApiController {
 	public @ResponseBody
 	       ResultEntity distributionStatistics(String cid){
 	   	log.entry(cid);
-		ResultEntity rsEntity = new ResultEntity();
 		if(StringUtils.isBlank(cid)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("配送员编号为空");
-			return log.exit(rsEntity);
+			return getErrorEntity("配送员编号为空");
 		}
 		
 		Map<String, String> rsMap = new HashMap<String, String>();
 		try{
 			rsMap = o2oWaybillService.courierPaymentStat(cid);
 		}catch(Exception e){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj(e.getMessage());
-			return log.exit(rsEntity);
+			return getErrorEntity(e.getMessage());
 		}
 		
-		rsEntity.setSuccess(true);
-		rsEntity.setErrors("OK");
-		rsEntity.setObj(rsMap);
-		return log.exit(rsEntity);
+		return getSuccessEntity(rsMap);
 	}
 	
 	/**
@@ -512,28 +491,21 @@ public class AppApiController {
 	public @ResponseBody
 	       ResultEntity scanIdentify(String id){
 		log.entry(id);
-		ResultEntity rsEntity = new ResultEntity();
 		
 		if(StringUtils.isBlank(id)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("运单编号为空");
-			return log.exit(rsEntity);
+			return getErrorEntity("ER","运单编号为空");
 		}
 		
 		if(id.startsWith("ksb_")){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("unidentify");
-			return log.exit(rsEntity);
+			return getErrorEntity("ER","unidentify");
 		}
 		
 		Map<String, String> rsMap = new HashMap<String, String>();
 		rsMap.put("id", id);
 		rsMap.put("sp_id", "1");
 		rsMap.put("name", "电商运单");
-		rsEntity.setSuccess(true);
-		rsEntity.setErrors("OK");
-		rsEntity.setObj(rsMap);
-		return log.exit(rsEntity);
+		
+		return getSuccessEntity(rsMap);
 	}
 	
 	/**
@@ -604,21 +576,15 @@ public class AppApiController {
 	public @ResponseBody
 	        ResultEntity olwaybill2DB(HttpServletRequest request){
 		
-		ResultEntity rsEntity = new ResultEntity();
-		
 		Map<String, String> saveMap = new HashMap<String, String>();
 		String cid = request.getParameter("cid");
 		if(StringUtils.isBlank(cid)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("配送员ID为空");
-			return rsEntity;
+			return getErrorEntity("配送员ID为空");
 		}
 		saveMap.put("cid", cid);
 		String oid = request.getParameter("oid");
 		if(StringUtils.isBlank(oid)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("电商运单号");
-			return rsEntity;
+			return getErrorEntity("电商运单号");
 		}
 		saveMap.put("oid", oid);
 		String remarks = request.getParameter("remarks");
@@ -626,24 +592,18 @@ public class AppApiController {
 		saveMap.put("remarks", remarks);
 		String isTopay = request.getParameter("is_topay");
 		if(StringUtils.isBlank(isTopay)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("是否到付为空");
-			return rsEntity;
+			return getErrorEntity("是否到付为空");
 		}
 		saveMap.put("is_topay", isTopay);
 		String fee = request.getParameter("fee");
 		if(isTopay.equals("1")){
 			if(StringUtils.isBlank(fee)){
-				rsEntity.setErrors("ER");
-				rsEntity.setObj("到付的金额为空");
-				return rsEntity;
+				return getErrorEntity("到付的金额为空");
 			}
 		}
 		String shipperId = request.getParameter("sp_id");
 		if(StringUtils.isBlank(shipperId)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("未指定电商信息");
-			return rsEntity;
+			return getErrorEntity("未指定电商信息");
 		}
 		
 		saveMap.put("sp_id", shipperId);
@@ -652,15 +612,10 @@ public class AppApiController {
 		try{
 		    eretailerService.createOlWaybill(saveMap);
 		}catch(Exception e){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj(e.getMessage());
-			return log.exit(rsEntity);
+			getErrorEntity(e.getMessage());
 		}
 		
-		rsEntity.setSuccess(true);
-		rsEntity.setObj("");
-		rsEntity.setErrors("OK");
-		return log.exit(rsEntity);
+		return getSuccessEntity("");
 	}
 	
 	/**
@@ -672,8 +627,6 @@ public class AppApiController {
 	public @ResponseBody
 	        ResultEntity shipperCreatewaybill(ShipperWaybill shipperWaybill ){
 		
-		ResultEntity rsEntity = new ResultEntity();
-		
 		Map<String, String> saveMap = new HashMap<String, String>();
 		
 		String remarks = shipperWaybill.getRemarks();
@@ -682,24 +635,17 @@ public class AppApiController {
 		
 		String shipperId = shipperWaybill.getSp_id();
 		if(StringUtils.isBlank(shipperId)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("商家编号为空");
-			return rsEntity;
+			return getErrorEntity("商家编号为空");
 		}
 		
 		String cityCode = shipperWaybill.getCity_code();
 		if(StringUtils.isBlank(cityCode)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("未指定城市");
-			return log.exit(rsEntity);
+			return getErrorEntity("未指定城市");
 		}
 		String x = shipperWaybill.getX();
 		String y = shipperWaybill.getY();
 		if(StringUtils.isBlank(x)||StringUtils.isBlank(y)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("无法获取商家位置");
-			return log.exit(rsEntity);
-			
+			return getErrorEntity("无法获取商家位置");
 		}
 		
 		saveMap.put("city_code", cityCode);
@@ -760,15 +706,10 @@ public class AppApiController {
 		try{
 		    shipperService.createWaybill(saveMap);
 		}catch(Exception e){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("系统异常：提交失败");
-			return log.exit(rsEntity);
+			return getErrorEntity("系统异常：提交失败");
 		}
 		
-		rsEntity.setSuccess(true);
-		rsEntity.setErrors("OK");
-		rsEntity.setObj("订单提交成功!");
-		return log.exit(rsEntity);
+		return getSuccessEntity("订单提交成功");
 	}
 	
 	
@@ -837,11 +778,8 @@ public class AppApiController {
 	public @ResponseBody
 	       ResultEntity courierCurrentDayWaybillCount(String cid,String t){
 		log.entry(cid,t);
-		ResultEntity rsEntity = new ResultEntity();
 		if(StringUtils.isBlank(cid)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("快递员ID为空");
-			return log.exit(rsEntity);
+			return getErrorEntity("快递员ID为空");
 		}
 		
 		if(StringUtils.isBlank(t)){
@@ -855,21 +793,14 @@ public class AppApiController {
 			}else if(t.equals("2")){
 				rsList = o2oWaybillService.currentDayWayBillStatistic(cid);
 			}else{
-				rsEntity.setErrors("ER");
-				rsEntity.setObj("操作参数t["+t+"]，无法识别");
-				return log.exit(rsEntity);
+				return getErrorEntity("操作参数t["+t+"]，无法识别");
 			}
 			
 		}catch(Exception e){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj(e.getMessage());
-			return log.exit(rsEntity);
+			return getErrorEntity(e.getMessage());
 		}
 		
-		rsEntity.setSuccess(true);
-		rsEntity.setObj(rsList);
-		rsEntity.setErrors("OK");
-		return log.exit(rsEntity);
+		return getSuccessEntity(rsList);
 	}
 
 	/**
@@ -881,11 +812,8 @@ public class AppApiController {
 	public @ResponseBody
 	       ResultEntity shipperCurrentDayWaybillCount(String sp_id){
 		log.entry(sp_id);
-		ResultEntity rsEntity = new ResultEntity();
 		if(StringUtils.isBlank(sp_id)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("电商编号为空");
-			return log.exit(rsEntity);
+			return getErrorEntity("电商编号为空");
 		}
 		
 		List<Map<String, String>> rsList = new ArrayList<Map<String,String>>();
@@ -894,15 +822,9 @@ public class AppApiController {
 			rsList = shipperService.currentDayShipperWayBillStatistic(sp_id);
 			
 		}catch(Exception e){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj(e.getMessage());
-			return log.exit(rsEntity);
+			return getErrorEntity(e.getMessage());
 		}
-		
-		rsEntity.setSuccess(true);
-		rsEntity.setObj(rsList);
-		rsEntity.setErrors("OK");
-		return log.exit(rsEntity);
+		return getSuccessEntity(rsList);
 	}	
 	
 	/**
@@ -913,22 +835,16 @@ public class AppApiController {
 	public @ResponseBody
 	        ResultEntity olShipperList(){
 		
-		ResultEntity rsEntity = new ResultEntity();
 		List<ShipperEntity> list = null;
 		try{
 			Map<String, String> map = new HashMap<String, String>();
 			map.put("t", "1");
 			list = shipperService.queryShipperList(map);
 		}catch(Exception e){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj(e.getMessage());
-			return log.exit(rsEntity);
+			return getErrorEntity(e.getMessage());
 		}
 		
-		rsEntity.setSuccess(true);
-		rsEntity.setErrors("OK");
-		rsEntity.setObj(list);
-		return log.exit(rsEntity);
+		return getSuccessEntity(list);
 	}
 	
 	/**
@@ -939,8 +855,6 @@ public class AppApiController {
 	@RequestMapping("/sp_address_list")
 	public @ResponseBody
 	        ResultEntity shipperAddressList(String sp_id){
-		
-		ResultEntity rsEntity = new ResultEntity();
 		
 		if(StringUtils.isBlank(sp_id)){
 			return getErrorEntity("商家编号为空");
@@ -953,10 +867,7 @@ public class AppApiController {
 			return log.exit(getErrorEntity(e.getMessage()));
 		}
 		
-		rsEntity.setSuccess(true);
-		rsEntity.setErrors("OK");
-		rsEntity.setObj(list);
-		return log.exit(rsEntity);
+		return getSuccessEntity(list);
 		
 	}
 	
@@ -1285,30 +1196,22 @@ public class AppApiController {
 	public @ResponseBody
 	       ResultEntity updateWaybillStatusByCourier(HttpServletRequest request){
 		
-		ResultEntity rs = new ResultEntity();
-		
 		Map<String, String> paraMap = new HashMap<String, String>();
 		
 		String id = request.getParameter("id");
 		if(StringUtils.isBlank(id)){
-			rs.setObj("运单ID为空");
-			rs.setErrors("ER");
-			return rs;
+			return getErrorEntity("运单ID为空");
 		}
 		paraMap.put("id", id);
 		
         String status = request.getParameter("status");
 		if(StringUtils.isBlank(status)){
-			rs.setObj("运单状态为空");
-			rs.setErrors("ER");
-			return rs;
+			return getErrorEntity("运单状态为空");
 		}
 		
         String cid = request.getParameter("cid");
 		if(StringUtils.isBlank(cid)){
-			rs.setObj("操作员ID为空");
-			rs.setErrors("ER");
-			return rs;
+			return getErrorEntity("操作员ID为空");
 		}
 		paraMap.put("cid", cid);
 		
@@ -1321,9 +1224,7 @@ public class AppApiController {
 		try{
 			eretailerService.updateWaybillStatus(paraMap);
 		}catch(Exception e){
-			rs.setErrors("ER");
-			rs.setObj(e.getMessage());
-			return log.exit(rs);
+			return getErrorEntity(e.getMessage());
 		}
 		
 //		int statusInt = Integer.parseInt(status);
@@ -1332,10 +1233,7 @@ public class AppApiController {
 //			//new AsynDeliveryStatus(cid, "0").run();
 //		}
 		
-		rs.setSuccess(true);
-		rs.setErrors("OK");
-		rs.setObj("");
-		return log.exit(rs);
+		return getSuccessEntity("");
 	}
 	
 	
@@ -1348,38 +1246,26 @@ public class AppApiController {
 	public @ResponseBody
 	       ResultEntity batchUpdateWaybillStatusByCourier(HttpServletRequest request){
 		
-		ResultEntity rs = new ResultEntity();
-		
 		Map<String, String> paraMap = new HashMap<String, String>();
 		
         String cid = request.getParameter("cid");
 		if(StringUtils.isBlank(cid)){
-			rs.setObj("配送员ID为空");
-			rs.setErrors("ER");
-			return rs;
+			return getErrorEntity("配送员ID为空");
 		}
 		paraMap.put("cid", cid);
 		
         String handleList = request.getParameter("handle_list");
 		if(StringUtils.isBlank(handleList)){
-			rs.setObj("未提供任何运单信息");
-			rs.setErrors("ER");
-			return rs;
+			return getErrorEntity("未提供任何运单信息");
 		}
 		paraMap.put("handle_list", handleList);
 		
 		try{
 			o2oWaybillService.batchFetchO2OWaybill(paraMap);
 		}catch(Exception e){
-			rs.setErrors("ER");
-			rs.setObj(e.getMessage());
-			return rs;
+			return getErrorEntity(e.getMessage());
 		}
-		log.entry(paraMap);
-		rs.setSuccess(true);
-		rs.setErrors("OK");
-		rs.setObj("");
-		return rs;
+		return getSuccessEntity("");
 	}
 	
 	/**
@@ -1394,8 +1280,6 @@ public class AppApiController {
 	public @ResponseBody
 	        ResultEntity reportGps(String cid,String eid,String x,String y){
 		
-		ResultEntity rs = new ResultEntity();
-		
 		/*配送员位置更新到数据库中*/
 		try{
 			courierService.recordCourierGps(cid, eid, x, y);
@@ -1406,11 +1290,7 @@ public class AppApiController {
 		try{
 			//new AsynRecordGps(cid, eid, x, y).run();
 		}catch(Exception e){}
-		
-		rs.setSuccess(true);
-		rs.setObj("");
-		rs.setErrors("OK");
-		return rs;
+		return getSuccessEntity("");
 	}
 	
 	/**
@@ -1422,26 +1302,19 @@ public class AppApiController {
 	@RequestMapping("/sp_login")
 	public @ResponseBody
 	       ResultEntity shipperUserLogin(String un,String pwd){
-		ResultEntity rs = new ResultEntity();
-		
 		
 		if(StringUtils.isBlank(un)){
-			rs.setErrors("ER");
-			rs.setObj("用户名为空");
-			return rs;
+			return getErrorEntity("用户名为空");
 		}
 		if(StringUtils.isBlank(pwd)){
-			rs.setErrors("ER");
-			rs.setObj("密码为空");
-			return rs;
+			return getErrorEntity("密码为空");
 		}		
 		
+		ResultEntity rs = new ResultEntity();
 		try{
 			rs = shipperService.authenSpUser(un, pwd);
 		}catch(Exception e){
-			rs.setErrors("ER");
-			rs.setObj(e.getMessage());
-			return rs;
+			return getErrorEntity(e.getMessage());
 		}
 	
 		return rs;
@@ -1456,19 +1329,13 @@ public class AppApiController {
 	public @ResponseBody
 	       ResultEntity shipperSetAddress(ShipperUserEntity entity){
 		
-		ResultEntity rs = new ResultEntity();
 		ShipperUserEntity spentity = null;
 		try{
 			spentity = shipperService.updateShipperDefualtAddress(entity);
 		}catch(Exception e){
-			rs.setErrors("ER");
-			rs.setObj(e.getMessage());
-			return rs;
+			return getErrorEntity(e.getMessage());
 		}
-		rs.setSuccess(true);
-		rs.setObj(spentity);
-		rs.setErrors("OK");
-		return rs;
+		return getSuccessEntity(spentity);
 	}
 	
 	/**
@@ -1486,33 +1353,22 @@ public class AppApiController {
 		ResultEntity rsEntity = new ResultEntity();
 		
 		if(StringUtils.isBlank(sp_id)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("商家编号为空");
-			return rsEntity;
+			return getErrorEntity("商家编号为空");
 		}
 		if(StringUtils.isBlank(id)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("订单编号为空");
-			return rsEntity;
+			return getErrorEntity("订单编号为空");
 		}		
 		if(StringUtils.isBlank(status)){
 			rsEntity.setErrors("ER");
-			rsEntity.setObj("状态值为空");
-			return rsEntity;
+			return getErrorEntity("状态值为空");
 		}		
 		try{
 			 shipperService.shipperHandleWaybill(sp_id, sp_uid, id, status);
 		}catch(Exception e){
-			rsEntity.setSuccess(false);
-			rsEntity.setErrors(e.getMessage());
-			return log.exit(rsEntity);
+			return getErrorEntity(e.getMessage());
 		}
 			
-		rsEntity.setSuccess(true);
-		rsEntity.setObj("");
-		rsEntity.setErrors("OK");
-			
-		return log.exit(rsEntity);
+		return getSuccessEntity("");
 	}
 	
 	/**
@@ -1527,17 +1383,12 @@ public class AppApiController {
 	public @ResponseBody
 	       ResultEntity countShipperWaybillByDate(String sp_id,String sp_uid,String st,String et){
 		
-		ResultEntity rsEntity = new ResultEntity();
 		
 		if(StringUtils.isBlank(sp_id)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("商家编号为空");
-			return rsEntity;
+			return getErrorEntity("商家编号为空");
 		}
 		if(StringUtils.isBlank(st)||StringUtils.isBlank(et)){
-			rsEntity.setErrors("ER");
-			rsEntity.setObj("请指定查询时间范围");
-			return rsEntity;
+			return getErrorEntity("请指定查询时间范围");
 		}		
 		
 		
@@ -1548,16 +1399,10 @@ public class AppApiController {
 			
 			rsMap = statisticsService.groupQueryShipperStatusByDate(sp_id, sp_uid, startTime, endTime);
 		}catch(Exception e){
-			rsEntity.setSuccess(false);
-			rsEntity.setErrors(e.getMessage());
-			return log.exit(rsEntity);
+			return getErrorEntity(e.getMessage());
 		}
 			
-		rsEntity.setSuccess(true);
-		rsEntity.setObj(rsMap);
-		rsEntity.setErrors("OK");
-			
-		return log.exit(rsEntity);
+		return getSuccessEntity(rsMap);
 	}
 	
 	
@@ -1706,6 +1551,19 @@ public class AppApiController {
 		rs.setObj("");
 		return rs;
 	}
+	
+	public ResultEntity getErrorEntity(String errorInfo,Object obj){
+		if(StringUtils.isNotBlank(errorInfo)){
+			errorInfo = errorInfo.replace("java.lang.reflect.UndeclaredThrowableException", "system error");
+			errorInfo = errorInfo.replace("com.ksb.openapi.error.BaseSupportException", "");
+		}
+		ResultEntity rs = new ResultEntity();
+		rs.setSuccess(false);
+		rs.setErrors(errorInfo);
+		rs.setObj(obj);
+		return rs;
+	}
+	
 	
 	/**
 	 * 返回操作对象默认值(操作正常)
