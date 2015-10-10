@@ -31,4 +31,7 @@
 	<dubbo:reference interface="com.ksb.openapi.mobile.service.O2oWaybillService" id="o2oWaybillService" />
 	<!-- 统计服务 -->
 	<dubbo:reference interface="com.ksb.openapi.service.StatisticsService" id="statisticsService" />
+	
+	<!-- 支付相关服务 -->
+	<dubbo:reference interface="com.ksb.openapi.mobile.service.ChargeService" id="chargeService" />
 </beans>

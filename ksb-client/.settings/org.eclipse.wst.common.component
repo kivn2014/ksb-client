@@ -10,6 +10,9 @@
         <dependent-module archiveName="jedis-3.0.0-beta-SNAPSHOT.jar" deploy-path="/WEB-INF/lib" handle="module:/resource/jedis/jedis">
             <dependency-type>uses</dependency-type>
         </dependent-module>
+        <dependent-module archiveName="pingxx-0.0.1-SNAPSHOT.jar" deploy-path="/WEB-INF/lib" handle="module:/resource/pingxx/pingxx">
+            <dependency-type>uses</dependency-type>
+        </dependent-module>
         <property name="java-output-path" value="/ksb-client/target/classes"/>
         <property name="context-root" value="/"/>
     </wb-module>
